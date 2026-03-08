@@ -6,6 +6,44 @@ import { useLLMProvidersStore } from './llmProvidersStore';
 import { generateSmartTitle } from '../utils/titleGenerator';
 import { audioStorage, isStorageUrl, resolveStorageUrl } from '../utils/audioStorage';
 
+// Audio resampling utility function
+async function resampleAudio(audioBuffer: AudioBuffer, targetSampleRate: number): Promise<AudioBuffer> {
+  const audioContext = new AudioContext({ sampleRate: targetSampleRate });
+  
+  try {
+    // Create an offline context for resampling
+    const offlineContext = new OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length * (targetSampleRate / audioBuffer.sampleRate),
+      targetSampleRate
+    );
+    
+    // Create a source node
+    const source = offlineContext.createBufferSource();
+    source.buffer = audioBuffer;
+    
+    // Connect the source to the offline context
+    source.connect(offlineContext.destination);
+    
+    // Start the source
+    source.start(0);
+    
+    // Render the resampled audio
+    const resampledBuffer = await offlineContext.startRendering();
+    
+    console.log('🔄 Audio resampled successfully:', {
+      originalSampleRate: audioBuffer.sampleRate,
+      targetSampleRate,
+      originalDuration: audioBuffer.duration,
+      newDuration: resampledBuffer.duration
+    });
+    
+    return resampledBuffer;
+  } finally {
+    await audioContext.close();
+  }
+}
+
 export interface ProgressItem {
   file: string;
   loaded?: number;
@@ -306,9 +344,66 @@ export const useTranscriptionStore = create<TranscriptionState>((set, get) => ({
       }
       
       const audioBlob = await response.blob();
+      console.log('🎯 TranscriptionStore: Audio blob info:', {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        mimeType: audioBlob.mimeType
+      });
+      
       const audioBuffer = await audioBlob.arrayBuffer();
-      const audioContext = new AudioContext({ sampleRate: 16000 });
-      const audioData = await audioContext.decodeAudioData(audioBuffer);
+      console.log('🎯 TranscriptionStore: Array buffer created, size:', audioBuffer.byteLength);
+      
+      // Try multiple audio context configurations for better compatibility
+      let audioData: AudioBuffer;
+      let audioContext: AudioContext;
+      
+      // First try with the original sample rate
+      try {
+        audioContext = new AudioContext();
+        audioData = await audioContext.decodeAudioData(audioBuffer);
+        console.log('🎯 TranscriptionStore: Audio decoded with original sample rate:', audioData.sampleRate);
+      } catch (originalError) {
+        console.warn('⚠️ Failed to decode with original sample rate, trying 16kHz:', originalError);
+        
+        // Try with 16kHz sample rate (required by Whisper models)
+        try {
+          audioContext = new AudioContext({ sampleRate: 16000 });
+          audioData = await audioContext.decodeAudioData(audioBuffer);
+          console.log('🎯 TranscriptionStore: Audio decoded at 16kHz');
+        } catch (khzError) {
+          console.warn('⚠️ Failed to decode at 16kHz, trying 44.1kHz:', khzError);
+          
+          // Try with 44.1kHz as last resort
+          try {
+            audioContext = new AudioContext({ sampleRate: 44100 });
+            audioData = await audioContext.decodeAudioData(audioBuffer);
+            console.log('🎯 TranscriptionStore: Audio decoded at 44.1kHz');
+          } catch (finalError) {
+            console.error('❌ All audio decoding attempts failed');
+            throw new Error(`Unable to decode audio data. The file may be corrupted or in an unsupported format. Original error: ${originalError instanceof Error ? originalError.message : 'Unknown error'}`);
+          }
+        }
+      } finally {
+        // Always close the audio context
+        try {
+          await audioContext.close();
+        } catch (e) {
+          console.warn('Warning: Could not close audio context:', e);
+        }
+      }
+      
+      console.log('✅ TranscriptionStore: Audio decoded successfully:', {
+        duration: audioData.duration,
+        sampleRate: audioData.sampleRate,
+        numberOfChannels: audioData.numberOfChannels,
+        length: audioData.length
+      });
+      
+      // Resample to 16kHz if needed (Whisper models expect 16kHz)
+      if (audioData.sampleRate !== 16000) {
+        console.log('🔄 Resampling audio from', audioData.sampleRate, 'to 16kHz');
+        audioData = await resampleAudio(audioData, 16000);
+      }
       
       // Start transcription
       get().startTranscription(audioData, noteId);
