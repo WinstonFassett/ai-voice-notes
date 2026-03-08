@@ -83,21 +83,23 @@ class AudioStorage {
   }
 
   private async processAudioForCompatibility(audioBlob: Blob, originalMimeType: string): Promise<Blob> {
-    // Check if we're on iOS/Safari and the audio is WebM
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     const isWebM = originalMimeType.includes('webm') || originalMimeType.includes('ogg');
+    const isM4A = originalMimeType.includes('mp4') || originalMimeType.includes('m4a') || originalMimeType.includes('aac');
     
     console.log('🔄 AudioStorage: Checking compatibility', {
       isIOS,
       isSafari,
       isWebM,
+      isM4A,
       originalMimeType,
-      needsConversion: (isIOS || isSafari) && isWebM
+      needsConversion: (isIOS || isSafari) && (isWebM || isM4A)
     });
     
-    if ((isIOS || isSafari) && isWebM) {
-      console.log('🔄 Converting WebM to WAV for iOS/Safari compatibility');
+    // Convert WebM and M4A to WAV for universal playback compatibility
+    if ((isIOS || isSafari) && (isWebM || isM4A)) {
+      console.log('🔄 Converting', originalMimeType, 'to WAV for playback compatibility');
       try {
         const convertedBlob = await this.convertToWAV(audioBlob);
         console.log('✅ Audio conversion successful', {
@@ -117,6 +119,18 @@ class AudioStorage {
           // Return original blob as last resort
           return audioBlob;
         }
+      }
+    }
+    
+    // For non-iOS/Safari browsers, still convert to WAV for best compatibility
+    if (!isIOS && !isSafari && (isWebM || isM4A)) {
+      console.log('🔄 Converting', originalMimeType, 'to WAV for universal compatibility');
+      try {
+        const convertedBlob = await this.convertToWAV(audioBlob);
+        return convertedBlob;
+      } catch (error) {
+        console.warn('⚠️ Could not convert to WAV, using original format');
+        return audioBlob;
       }
     }
     
@@ -249,15 +263,9 @@ class AudioStorage {
   }
 
   private getCompatibleMimeType(): string {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    
-    if (isIOS || isSafari) {
-      return 'audio/wav';
-    }
-    
-    return 'audio/webm';
-  }
+  // Always use WAV for universal playback compatibility across all browsers
+  return 'audio/wav';
+}
 
   async getAudio(id: string): Promise<{ url: string; mimeType: string } | null> {
     if (!this.db) await this.init();
