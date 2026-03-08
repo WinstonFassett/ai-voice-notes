@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   PlusIcon,
   MicrophoneIcon,
   DocumentArrowUpIcon,
-  LinkIcon
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 interface AddButtonProps {
   onStartRecording: () => void;
-  onUploadFile: () => void;
-  onFromUrl: () => void;
+  onUploadAudio: () => void;
+  onUploadMarkdown: () => void;
   onCreateNote: () => void;
 }
 
 export const AddButton: React.FC<AddButtonProps> = ({
   onStartRecording,
-  onUploadFile,
-  onFromUrl,
+  onUploadAudio,
+  onUploadMarkdown,
   onCreateNote
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,18 +34,18 @@ export const AddButton: React.FC<AddButtonProps> = ({
     },
     {
       icon: DocumentArrowUpIcon,
-      label: 'Upload File',
+      label: 'Upload Audio',
       action: () => {
-        onUploadFile();
+        onUploadAudio();
         setIsOpen(false);
       },
       color: 'text-green-400'
     },
     {
-      icon: LinkIcon,
-      label: 'From URL',
+      icon: DocumentTextIcon,
+      label: 'Upload Markdown',
       action: () => {
-        onFromUrl();
+        onUploadMarkdown();
         setIsOpen(false);
       },
       color: 'text-blue-400'

@@ -20,11 +20,11 @@ import { cn } from '../../lib/utils';
 import { MarkdownPreview } from '../MarkdownPreview';
 
 interface LibraryScreenProps {
-  onUploadFile: () => void;
-  onFromUrl: () => void;
+  onUploadAudio: () => void;
+  onUploadMarkdown: () => void;
 }
 
-export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onUploadFile, onFromUrl }) => {
+export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onUploadAudio, onUploadMarkdown }) => {
   // Get everything from stores
   const { notes, deleteNote, createNote } = useNotesStore();
   const { startRecordingFlow } = useRecordingStore();
@@ -281,8 +281,8 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onUploadFile, onFr
         actions={
           <AddButton
             onStartRecording={startRecordingFlow}
-            onUploadFile={onUploadFile}
-            onFromUrl={onFromUrl}
+            onUploadAudio={onUploadAudio}
+            onUploadMarkdown={onUploadMarkdown}
             onCreateNote={() => {
               const newNoteId = createNote();
               navigate({ to: '/note/$id', params: { id: newNoteId } });
