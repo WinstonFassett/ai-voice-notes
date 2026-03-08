@@ -4,10 +4,6 @@ import { pipeline, env } from "@xenova/transformers";
 // Disable local models
 env.allowLocalModels = false;
 
-// Configure memory settings for better performance
-env.backends.onnx.wasm.numThreads = 1; // Reduce threads to save memory
-env.backends.onnx.wasm.simd = true; // Enable SIMD for better performance
-
 // Define model factories
 // Ensures only one model is created of each type
 class PipelineFactory {
@@ -24,26 +20,12 @@ class PipelineFactory {
 
     static async getInstance(progress_callback = null) {
         if (this.instance === null) {
-            // Clear any existing model to free memory
-            if (this.instance) {
-                await this.instance.dispose();
-                this.instance = null;
-                // Force garbage collection if available
-                if (global.gc) {
-                    global.gc();
-                }
-            }
-
             this.instance = pipeline(this.task, this.model, {
                 quantized: this.quantized,
                 progress_callback,
 
                 // For medium models, we need to load the `no_attentions` revision to avoid running out of memory
-                revision: this.model.includes("/whisper-medium") ? "no_attentions" : "main",
-                
-                // Additional memory settings
-                dtype: this.quantized ? "q8" : "fp32",
-                device: "wasm",
+                revision: this.model.includes("/whisper-medium") ? "no_attentions" : "main"
             });
         }
 
